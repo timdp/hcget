@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+set -e
+
+# TODO Support other platforms
+OS=linux
+[[ `uname -m` = x86_64 ]] && ARCH=amd64 || ARCH=386
+
+# TODO Make destination configurable
+DEST=/usr/local/bin
+
+(( $# == 1 )) || {
+  echo "Usage: $0 <product>" >&2
+  exit 1
+}
+
+PRODUCT="$1"
+RELEASES_URL="https://releases.hashicorp.com/$PRODUCT/index.json"
+
+DEPS=''
+jq --version 2>&1 >/dev/null || DEPS="$DEPS jq"
+curl --version 2>&1 >/dev/null || DEPS="$DEPS curl"
+unzip 2>&1 >/dev/null || DEPS="$DEPS unzip"
+
+[[ -z "$DEPS" ]] || {
+  echo "Installing dependencies:$DEPS"
+  # TODO Support other platforms
+  sudo apt-get update
+  sudo apt-get install --assume-yes $DEPS
+}
+
+echo "Loading $PRODUCT releases from $RELEASES_URL"
+DATA="$(
+  curl -s "$RELEASES_URL" | jq -r '
+    .versions[].builds[] |
+    select(.os == "'$OS'" and .arch == "'$ARCH'") |
+    [.version, .filename, .url] |
+    @tsv
+  '
+)"
+
+VERSION=''
+VERNUM=0
+FILENAME=''
+URL=''
+
+IFS=$'\n'
+for RECORD in $DATA; do
+  IFS=$' \t'
+  set -- $RECORD
+  V="$1"
+  F="$2"
+  U="$3"
+
+  IFS='.'
+  set -- $V
+
+  # JSON doesn't guarantee order, so turn the SemVer string into a number and
+  # remember the highest one
+  (( N = (($1 * 1000) + $2 * 1000) + $3 ))
+  (( N > VERNUM )) && {
+    VERNUM="$N"
+    VERSION="$V"
+    FILENAME="$F"
+    URL="$U"
+  }
+done
+
+(( VERNUM > 0 )) || {
+  echo "Failed to get release information" >&2
+  exit 2
+}
+
+echo "Latest $PRODUCT version: $VERSION"
+
+INSTALLED=$( "$PRODUCT" --version 2>/dev/null || echo none )
+echo "Installed version: $INSTALLED"
+
+[[ $INSTALLED = $VERSION || $INSTALLED = *" v$VERSION" ]] && {
+  echo "No need to install"
+  exit 0
+}
+
+echo "Checking for root privileges"
+sudo echo "Root privileges granted"
+
+TEMPFILE=$( mktemp --tmpdir "$PRODUCT.XXXX.zip" )
+
+echo "Downloading $URL to $TEMPFILE"
+curl -o "$TEMPFILE" "$URL"
+
+[[ -f "$DEST/$PRODUCT" ]] && {
+  echo "Removing old $DEST/$PRODUCT"
+  rm -f "$DEST/$PRODUCT"
+}
+
+echo "Unzipping $TEMPFILE to $DEST"
+sudo unzip -d "$DEST" "$TEMPFILE"
+
+echo "Setting permissions on $DEST/$PRODUCT"
+sudo chmod 755 "$DEST/$PRODUCT"
+
+echo "Successfully installed $PRODUCT version $VERSION"
+
+echo "Removing $TEMPFILE"
+rm -f "$TEMPFILE"
