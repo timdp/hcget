@@ -91,7 +91,7 @@ curl -o "$TEMPFILE" "$URL"
 
 [[ -f "$DEST/$PRODUCT" ]] && {
   echo "Removing old $DEST/$PRODUCT"
-  rm -f "$DEST/$PRODUCT"
+  sudo rm -f "$DEST/$PRODUCT"
 }
 
 echo "Unzipping $TEMPFILE to $DEST"
