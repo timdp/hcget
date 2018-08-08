@@ -57,7 +57,7 @@ for RECORD in $DATA; do
 
   # JSON doesn't guarantee order, so turn the SemVer string into a number and
   # remember the highest one
-  (( N = (($1 * 1000) + $2 * 1000) + $3 ))
+  (( N = (($1 * 1000 + $2) * 1000) + $3 ))
   (( N > VERNUM )) && {
     VERNUM="$N"
     VERSION="$V"
