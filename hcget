@@ -9,12 +9,13 @@ OS=linux
 # TODO Make destination configurable
 DEST=/usr/local/bin
 
-(( $# == 1 )) || {
-  echo "Usage: $0 <product>" >&2
+(( $# == 1 || $# == 2 )) || {
+  echo "Usage: $0 <product> [version]" >&2
   exit 1
 }
 
 PRODUCT="$1"
+REQUESTED_VERSION="$2"
 RELEASES_URL="https://releases.hashicorp.com/$PRODUCT/index.json"
 
 DEPS=''
@@ -58,12 +59,15 @@ for RECORD in $DATA; do
   # JSON doesn't guarantee order, so turn the SemVer string into a number and
   # remember the highest one
   (( N = (($1 * 1000 + $2) * 1000) + $3 ))
-  (( N > VERNUM )) && {
+  if \
+    [[ -n "$REQUESTED_VERSION" && "$REQUESTED_VERSION" = "$V" ]] || \
+    [[ -z "$REQUESTED_VERSION" && "$N" -gt "$VERNUM" ]]
+  then
     VERNUM="$N"
     VERSION="$V"
     FILENAME="$F"
     URL="$U"
-  }
+  fi
 done
 
 (( VERNUM > 0 )) || {
@@ -71,7 +75,7 @@ done
   exit 2
 }
 
-echo "Latest $PRODUCT version: $VERSION"
+echo "Desired $PRODUCT version: $VERSION"
 
 INSTALLED=$( "$PRODUCT" --version 2>/dev/null || echo none )
 echo "Installed version: $INSTALLED"
