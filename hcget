@@ -56,6 +56,10 @@ for RECORD in $DATA; do
   IFS='.'
   set -- $V
 
+  if [[ $3 == *-* ]]; then
+    continue
+  fi
+
   # JSON doesn't guarantee order, so turn the SemVer string into a number and
   # remember the highest one
   (( N = (($1 * 1000 + $2) * 1000) + $3 ))
